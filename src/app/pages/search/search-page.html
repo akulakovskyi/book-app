@@ -1,0 +1,160 @@
+<section class="relative mx-auto max-w-xl">
+  <div
+    aria-hidden="true"
+    class="pointer-events-none absolute inset-x-0 -top-10 -z-10 mx-auto h-64 max-w-lg rounded-full bg-gradient-to-br from-blue-200/50 via-rose-100/40 to-amber-100/40 blur-3xl"></div>
+
+  <div class="mb-8 text-center sm:mb-10">
+    <div class="mb-4 inline-flex items-center gap-1.5 rounded-full border border-black/5 bg-white/80 px-3 py-1 text-[11px] font-medium uppercase tracking-wider text-neutral-600 shadow-sm backdrop-blur">
+      <i class="pi pi-sparkles text-[11px] text-amber-500"></i>
+      <span>{{ t('search.badge') }}</span>
+    </div>
+    <h1 class="text-[34px] font-semibold tracking-[-0.03em] text-black sm:text-5xl">
+      {{ t('search.title') }}
+    </h1>
+    <p class="mt-3 text-[15px] leading-relaxed text-neutral-500 sm:text-base">
+      {{ t('search.subtitle1') }}<br class="hidden sm:inline" />
+      {{ t('search.subtitle2') }}
+    </p>
+  </div>
+
+  <form [formGroup]="form" (ngSubmit)="submit()"
+        class="space-y-5 rounded-3xl border border-black/5 bg-white p-5 shadow-[0_1px_2px_rgba(0,0,0,0.04),0_12px_40px_-8px_rgba(0,0,0,0.08)] sm:p-8">
+
+    <div class="flex flex-col gap-1.5">
+      <label for="destination" class="flex items-center gap-1.5 text-[13px] font-medium text-neutral-700">
+        <i class="pi pi-map-marker text-[11px] text-neutral-400"></i>
+        {{ t('search.destination') }}
+      </label>
+      <p-iconfield>
+        <p-inputicon styleClass="pi pi-search !text-neutral-400" />
+        <input
+          id="destination"
+          pInputText
+          formControlName="destination"
+          [placeholder]="t('search.destinationPlaceholder')"
+          class="!pl-10" />
+      </p-iconfield>
+    </div>
+
+    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <div class="flex flex-col gap-1.5">
+        <label for="checkin" class="flex items-center gap-1.5 text-[13px] font-medium text-neutral-700">
+          <i class="pi pi-calendar text-[11px] text-neutral-400"></i>
+          {{ t('search.checkIn') }}
+        </label>
+        <p-datepicker
+          inputId="checkin"
+          formControlName="checkIn"
+          dateFormat="yy-mm-dd"
+          showIcon
+          iconDisplay="input"
+          appendTo="body" />
+      </div>
+      <div class="flex flex-col gap-1.5">
+        <label for="checkout" class="flex items-center gap-1.5 text-[13px] font-medium text-neutral-700">
+          <i class="pi pi-calendar-plus text-[11px] text-neutral-400"></i>
+          {{ t('search.checkOut') }}
+        </label>
+        <p-datepicker
+          inputId="checkout"
+          formControlName="checkOut"
+          dateFormat="yy-mm-dd"
+          showIcon
+          iconDisplay="input"
+          appendTo="body" />
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <div class="flex flex-col gap-1.5">
+        <label for="guests" class="flex items-center gap-1.5 text-[13px] font-medium text-neutral-700">
+          <i class="pi pi-users text-[11px] text-neutral-400"></i>
+          {{ t('search.guests') }}
+        </label>
+        <p-inputnumber
+          inputId="guests"
+          formControlName="totalGuests"
+          [min]="1"
+          [max]="32"
+          [showButtons]="true"
+          buttonLayout="horizontal"
+          decrementButtonIcon="pi pi-minus"
+          incrementButtonIcon="pi pi-plus"
+          styleClass="p-inputnumber-horizontal" />
+      </div>
+      <div class="flex flex-col gap-1.5">
+        <label for="maxUnits" class="flex items-center gap-1.5 text-[13px] font-medium text-neutral-700">
+          <i class="pi pi-th-large text-[11px] text-neutral-400"></i>
+          {{ t('search.maxUnits') }}
+        </label>
+        <p-inputnumber
+          inputId="maxUnits"
+          formControlName="maxSplitUnits"
+          [min]="1"
+          [max]="8"
+          [showButtons]="true"
+          buttonLayout="horizontal"
+          decrementButtonIcon="pi pi-minus"
+          incrementButtonIcon="pi pi-plus"
+          styleClass="p-inputnumber-horizontal" />
+      </div>
+      <div class="flex flex-col gap-1.5">
+        <label for="minUnit" class="flex items-center gap-1.5 text-[13px] font-medium text-neutral-700">
+          <i class="pi pi-user text-[11px] text-neutral-400"></i>
+          {{ t('search.minUnit') }}
+        </label>
+        <p-inputnumber
+          inputId="minUnit"
+          formControlName="minUnitSize"
+          [min]="1"
+          [max]="10"
+          [showButtons]="true"
+          buttonLayout="horizontal"
+          decrementButtonIcon="pi pi-minus"
+          incrementButtonIcon="pi pi-plus"
+          styleClass="p-inputnumber-horizontal" />
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 items-end gap-4 sm:grid-cols-2">
+      <div class="flex flex-col gap-1.5">
+        <label for="currency" class="flex items-center gap-1.5 text-[13px] font-medium text-neutral-700">
+          <i class="pi pi-dollar text-[11px] text-neutral-400"></i>
+          {{ t('search.currency') }}
+        </label>
+        <p-select
+          inputId="currency"
+          formControlName="currency"
+          [options]="currencyOptions"
+          optionLabel="label"
+          optionValue="value"
+          appendTo="body" />
+      </div>
+      <label class="flex cursor-pointer items-center gap-2.5 text-[14px] text-neutral-700 sm:h-[44px]">
+        <p-checkbox formControlName="excludeHostels" [binary]="true" inputId="excludeHostels" />
+        <span class="flex items-center gap-1.5">
+          <i class="pi pi-ban text-[11px] text-neutral-400"></i>
+          {{ t('search.excludeHostels') }}
+        </span>
+      </label>
+    </div>
+
+    @if (error(); as msg) {
+      <p-message severity="error" [text]="msg" styleClass="w-full" />
+    }
+
+    <p-button
+      type="submit"
+      [disabled]="form.invalid || loading()"
+      [loading]="loading()"
+      icon="pi pi-search"
+      styleClass="w-full h-12"
+      [label]="submitLabel()" />
+  </form>
+
+  <div class="mt-6 flex items-center justify-center gap-4 text-[11px] text-neutral-500">
+    <span class="flex items-center gap-1"><i class="pi pi-lock text-[10px]"></i> {{ t('search.footerPrivacy') }}</span>
+    <span class="h-1 w-1 rounded-full bg-neutral-300"></span>
+    <span class="flex items-center gap-1"><i class="pi pi-file-export text-[10px]"></i> {{ t('search.footerPdf') }}</span>
+  </div>
+</section>

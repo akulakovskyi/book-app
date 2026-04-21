@@ -1,0 +1,487 @@
+@if (error(); as msg) {
+  <div class="rounded-2xl border border-rose-200 bg-rose-50/60 px-4 py-3 text-sm text-rose-700">
+    {{ msg }} · <a routerLink="/" class="underline">{{ t('results.newSearch') }}</a>
+  </div>
+}
+
+@if (result(); as r) {
+  <section class="relative mb-6 overflow-hidden rounded-3xl border border-black/5 bg-neutral-900 shadow-[0_12px_40px_-8px_rgba(0,0,0,0.12)] sm:mb-8">
+    <div
+      class="absolute inset-0 bg-gradient-to-br from-indigo-900 via-slate-900 to-neutral-950 bg-cover bg-center"
+      [style.backgroundImage]="'url(' + heroImageUrl() + ')'"></div>
+    <div class="absolute inset-0 bg-gradient-to-t from-black/85 via-black/40 to-black/20"></div>
+
+    <div class="relative flex flex-col gap-4 px-5 py-6 text-white sm:flex-row sm:items-end sm:justify-between sm:px-8 sm:py-10">
+      <div>
+        <div class="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-2.5 py-1 text-[10px] font-medium uppercase tracking-[0.12em] backdrop-blur-sm">
+          <i class="pi pi-map-marker text-[10px]"></i>
+          {{ t('results.forGuests') }}: {{ r.input.totalGuests }}
+        </div>
+        <h1 class="mt-2 text-[32px] font-semibold tracking-[-0.025em] sm:text-5xl">{{ r.input.destination }}</h1>
+        <div class="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] text-white/80">
+          <span class="flex items-center gap-1.5">
+            <i class="pi pi-calendar text-[11px]"></i>
+            {{ r.input.checkIn }} → {{ r.input.checkOut }}
+          </span>
+          <span class="flex items-center gap-1.5">
+            <i class="pi pi-moon text-[11px]"></i>
+            {{ r.nights }} {{ r.nights === 1 ? t('results.night') : t('results.nights') }}
+          </span>
+          <span class="flex items-center gap-1.5">
+            <i class="pi pi-users text-[11px]"></i>
+            {{ r.input.totalGuests }} {{ t('results.guests') }}
+          </span>
+        </div>
+      </div>
+      <div class="flex gap-2">
+        <p-button routerLink="/" [label]="t('results.new')" severity="secondary" [outlined]="true" size="small" icon="pi pi-plus" styleClass="!bg-white/10 !border-white/20 !text-white" />
+        <a [href]="reportUrl()" target="_blank" rel="noopener" class="inline-flex">
+          <p-button [label]="t('results.report')" icon="pi pi-file-export" size="small" styleClass="!bg-white !text-black" />
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <p-tabs value="shapes">
+    <p-tablist>
+      <p-tab value="shapes">
+        <span class="inline-flex items-center gap-2">
+          <i class="pi pi-star-fill text-[11px]"></i>
+          {{ t('results.tabShapes') }}
+          <span class="rounded-full bg-black/10 px-1.5 text-[10px] font-semibold">{{ r.splitGroups.length }}</span>
+        </span>
+      </p-tab>
+      <p-tab value="custom">
+        <span class="inline-flex items-center gap-2">
+          <i class="pi pi-th-large text-[11px]"></i>
+          {{ t('results.tabCustom') }}
+          @if (plan().length > 0) {
+            <span class="rounded-full bg-black px-1.5 text-[10px] font-semibold text-white">{{ plan().length }}</span>
+          }
+        </span>
+      </p-tab>
+    </p-tablist>
+
+    <p-tabpanels>
+      <!-- Tab 1: Recommended shapes -->
+      <p-tabpanel value="shapes">
+        <div class="mb-4 flex items-baseline justify-between">
+          <h2 class="flex items-center gap-2 text-lg font-semibold tracking-tight text-black sm:text-xl">
+            {{ t('results.recommendedShapes') }}
+          </h2>
+          <span class="hidden text-[12px] text-neutral-500 sm:inline">{{ t('results.sortedByPP') }}</span>
+        </div>
+
+        @if (r.splitGroups.length === 0) {
+          <div class="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-amber-800">
+            {{ t('results.noSplits') }}
+          </div>
+        }
+
+        <div class="space-y-4">
+          @for (group of r.splitGroups; track group.id; let g = $index) {
+            <section class="rounded-3xl border bg-white p-4 shadow-[0_1px_2px_rgba(0,0,0,0.03),0_8px_32px_-12px_rgba(0,0,0,0.08)] sm:p-6"
+                     [class.border-black]="g === 0"
+                     [class.border-black/10]="g !== 0">
+              <header class="mb-4 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <div class="text-[11px] font-medium uppercase tracking-[0.12em] text-neutral-500">
+                    {{ t('results.shape') }} {{ g + 1 }} @if (g === 0) { · {{ t('results.bestValue') }} }
+                  </div>
+                  <h3 class="mt-1 text-2xl font-semibold tracking-tight text-black">{{ group.label }}</h3>
+                  <div class="mt-1 text-[12px] text-neutral-500">
+                    {{ group.alternatives.length }}
+                    {{ group.alternatives.length === 1 ? t('results.alternative') : t('results.alternatives') }}
+                  </div>
+                </div>
+                <div class="text-left sm:text-right">
+                  <div class="text-lg font-semibold text-black">
+                    {{ t('results.from') }} {{ formatMoney(group.alternatives[0].totalPrice, group.alternatives[0].currency) }}
+                  </div>
+                  <div class="text-[12px] text-neutral-500">
+                    {{ formatMoney(group.alternatives[0].pricePerPerson, group.alternatives[0].currency) }} {{ t('results.perPerson') }}
+                  </div>
+                </div>
+              </header>
+
+              <div class="space-y-3">
+                @for (opt of slice(group.alternatives, splitShown(group.id)); track opt.id; let a = $index) {
+                  <article class="rounded-2xl border border-black/5 bg-neutral-50/60 p-3 sm:p-4">
+                    <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
+                      <div class="flex flex-wrap items-center gap-1.5 text-[11px]">
+                        <span class="rounded-full bg-black px-2 py-0.5 font-medium text-white">{{ t('results.alt') }} {{ a + 1 }}</span>
+                        @for (s of opt.sources; track s) {
+                          <span class="rounded-full px-2 py-0.5 font-medium"
+                                [class.bg-blue-50]="s === 'booking'"
+                                [class.text-blue-700]="s === 'booking'"
+                                [class.bg-rose-50]="s === 'airbnb'"
+                                [class.text-rose-700]="s === 'airbnb'">{{ s }}</span>
+                        }
+                        @if (opt.averageRating != null) {
+                          <span class="rounded-full bg-amber-50 px-2 py-0.5 font-medium text-amber-700">★ {{ opt.averageRating }}</span>
+                        }
+                      </div>
+                      <div class="text-right">
+                        <span class="text-base font-semibold text-black">{{ formatMoney(opt.totalPrice, opt.currency) }}</span>
+                        <span class="ml-1.5 text-[11px] text-neutral-500">
+                          {{ formatMoney(opt.pricePerPerson, opt.currency) }} {{ t('results.pp') }}
+                        </span>
+                      </div>
+                    </div>
+                    <div class="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                      @for (pick of opt.picks; track pick.listing.id) {
+                        <a [href]="pick.listing.url" target="_blank" rel="noopener"
+                           class="group flex gap-2.5 rounded-xl bg-white p-2 transition hover:shadow-md">
+                          <div class="h-14 w-20 flex-shrink-0 rounded-lg bg-neutral-100 bg-cover bg-center"
+                               [style.backgroundImage]="pick.listing.images[0] ? 'url(' + pick.listing.images[0] + ')' : ''"></div>
+                          <div class="min-w-0 flex-1">
+                            <div class="text-[10px] font-medium uppercase tracking-[0.08em] text-neutral-400">
+                              {{ pick.listing.source }} · {{ pick.unitSize }}
+                            </div>
+                            <div class="line-clamp-2 text-[13px] font-medium text-black group-hover:underline">{{ pick.listing.title }}</div>
+                            <div class="mt-0.5 text-[12px] font-semibold text-black">
+                              @if (pick.listing.priceTotal != null) { {{ formatMoney(pick.listing.priceTotal, pick.listing.currency) }} }
+                            </div>
+                          </div>
+                        </a>
+                      }
+                    </div>
+                  </article>
+                }
+              </div>
+
+              @if (group.alternatives.length > SPLIT_INITIAL) {
+                <div class="mt-4 flex items-center justify-between gap-3">
+                  <span class="text-[11px] text-neutral-500">
+                    {{ splitShown(group.id) > group.alternatives.length ? group.alternatives.length : splitShown(group.id) }} {{ t('results.showingOf') }} {{ group.alternatives.length }}
+                  </span>
+                  <div class="flex gap-2">
+                    @if (splitShown(group.id) > SPLIT_INITIAL) {
+                      <button type="button" (click)="collapseSplit(group.id)"
+                              class="inline-flex items-center gap-1 rounded-full border border-black/10 bg-white px-3 py-1.5 text-[12px] font-medium text-neutral-700 hover:bg-neutral-50">
+                        <i class="pi pi-chevron-up text-[10px]"></i>
+                        {{ t('results.showLess') }}
+                      </button>
+                    }
+                    @if (splitShown(group.id) < group.alternatives.length) {
+                      <button type="button" (click)="showMoreSplit(group.id)"
+                              class="inline-flex items-center gap-1 rounded-full bg-black px-3 py-1.5 text-[12px] font-medium text-white hover:bg-neutral-800">
+                        <i class="pi pi-chevron-down text-[10px]"></i>
+                        {{ t('results.showMore') }}
+                      </button>
+                    }
+                  </div>
+                </div>
+              }
+            </section>
+          }
+        </div>
+      </p-tabpanel>
+
+      <!-- Tab 2: Build your own -->
+      <p-tabpanel value="custom">
+        @if (plan().length === 0) {
+          <section class="mb-6 rounded-3xl border-2 border-dashed border-black/10 bg-white/60 p-6 text-center sm:mb-8 sm:p-10">
+            <div class="mx-auto inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-black text-white">
+              <i class="pi pi-wrench text-sm"></i>
+            </div>
+            <h3 class="mt-3 text-lg font-semibold tracking-tight text-black">{{ t('results.emptyPlanTitle') }}</h3>
+            <p class="mx-auto mt-2 max-w-md text-[13px] text-neutral-500">{{ t('results.emptyPlanBody') }}</p>
+          </section>
+        } @else {
+          <section class="mb-6 rounded-3xl border border-black/10 bg-black p-5 text-white shadow-[0_12px_40px_-8px_rgba(0,0,0,0.25)] sm:mb-8 sm:p-6">
+            <div class="mb-3 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <div class="text-[11px] font-medium uppercase tracking-[0.12em] text-neutral-400">{{ t('results.plan') }}</div>
+                <div class="mt-1 text-xl font-semibold tracking-tight">
+                  {{ plan().length }} {{ plan().length === 1 ? t('results.listing') : t('results.listings') }} · {{ planCapacity() }} {{ t('results.capacity') }}
+                </div>
+                <div class="mt-1 text-[13px] text-neutral-400">
+                  @if (planShortage() > 0) {
+                    <span class="text-rose-300">{{ planShortage() }} {{ t('results.withoutBed') }}</span>
+                  } @else if (planOverflow() > 0) {
+                    <span class="text-amber-300">{{ planOverflow() }} {{ planOverflow() === 1 ? t('results.spareSpot') : t('results.spareSpots') }}</span>
+                  } @else {
+                    <span class="text-emerald-300">{{ t('results.fitsExactly') }} {{ r.input.totalGuests }} {{ t('results.guests') }}</span>
+                  }
+                </div>
+              </div>
+              <div class="text-left sm:text-right">
+                <div class="text-3xl font-semibold tracking-tight">{{ formatMoney(planTotalPrice(), planCurrency()) }}</div>
+                <div class="text-[13px] text-neutral-400">
+                  {{ formatMoney(planTotalPrice() / r.input.totalGuests, planCurrency()) }} {{ t('results.perPerson') }}
+                </div>
+                <button type="button" (click)="clearPlan()"
+                        class="mt-2 text-[12px] text-neutral-400 hover:text-white">{{ t('results.clear') }}</button>
+              </div>
+            </div>
+
+            <p class="mb-3 text-[12px] text-neutral-400">{{ t('results.planHint') }}</p>
+
+            <div class="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              @for (l of plan(); track l.id) {
+                <div class="flex items-center gap-3 rounded-2xl bg-white/5 p-2.5 ring-1 ring-white/10">
+                  <div class="h-12 w-16 flex-shrink-0 rounded-xl bg-neutral-800 bg-cover bg-center"
+                       [style.backgroundImage]="l.images[0] ? 'url(' + l.images[0] + ')' : ''"></div>
+                  <div class="min-w-0 flex-1">
+                    <div class="line-clamp-2 text-[13px] font-medium leading-tight">{{ l.title }}</div>
+                    <div class="text-[11px] text-neutral-400">{{ l.source }} · {{ l.capacity }} {{ t('results.guests') }}</div>
+                    <div class="text-[12px] font-semibold">
+                      @if (l.priceTotal != null) { {{ formatMoney(l.priceTotal, l.currency) }} }
+                    </div>
+                  </div>
+                  <button type="button" (click)="togglePlan(l)"
+                          class="flex-shrink-0 text-neutral-400 hover:text-white" [attr.aria-label]="t('results.remove')">
+                    <i class="pi pi-times text-xs"></i>
+                  </button>
+                </div>
+              }
+            </div>
+          </section>
+        }
+
+        <div class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h2 class="flex items-center gap-2 text-lg font-semibold tracking-tight text-black sm:text-xl">
+              {{ t('results.buildYourOwn') }}
+            </h2>
+            <p class="mt-1 text-[13px] text-neutral-500">{{ t('results.buildYourOwnSubtitle') }}</p>
+          </div>
+          <div class="flex items-center gap-2">
+            <label for="sort" class="text-[13px] text-neutral-700">{{ t('results.sort') }}</label>
+            <p-select
+              inputId="sort"
+              [options]="sortOptions()"
+              [ngModel]="sortKey()"
+              (ngModelChange)="sortKey.set($event)"
+              optionLabel="label"
+              optionValue="value"
+              appendTo="body"
+              styleClass="w-full sm:w-56" />
+          </div>
+        </div>
+
+        <div class="space-y-5">
+          @for (unit of r.perUnit; track unit.size) {
+            <section class="rounded-3xl border border-black/10 bg-white p-4 shadow-[0_1px_2px_rgba(0,0,0,0.03),0_8px_32px_-12px_rgba(0,0,0,0.06)] sm:p-6">
+              <header class="mb-4 flex items-baseline justify-between">
+                <h3 class="flex items-center gap-2 text-xl font-semibold tracking-tight text-black">
+                  <i class="pi pi-users text-sm text-neutral-400"></i>
+                  {{ unit.size }} {{ t('results.guests') }}
+                </h3>
+                <div class="text-[11px] text-neutral-500">{{ unit.booking.length }} booking · {{ unit.airbnb.length }} airbnb</div>
+              </header>
+
+              <div class="grid gap-5 md:grid-cols-2">
+                <div>
+                  <div class="mb-2 flex items-center gap-2">
+                    <span class="rounded-full bg-blue-50 px-2 py-0.5 text-[11px] font-medium text-blue-700">Booking</span>
+                  </div>
+                  @if (unit.booking.length === 0) {
+                    <div class="rounded-xl border border-dashed border-black/10 px-3 py-4 text-[12px] text-neutral-500">{{ t('results.noListings') }}</div>
+                  }
+                  <ul class="space-y-1.5">
+                    @for (l of slice(sortListings(unit.booking), catalogShown(unit.size, 'booking')); track l.id) {
+                      <li class="flex items-center gap-2 rounded-2xl border border-black/5 bg-white p-2 transition"
+                          [class.ring-2]="inPlan(l)"
+                          [class.ring-black]="inPlan(l)"
+                          [class.bg-neutral-50]="inPlan(l)">
+                        <a [href]="l.url" target="_blank" rel="noopener"
+                           class="flex min-w-0 flex-1 items-center gap-2.5 hover:opacity-80 sm:gap-3">
+                          <div class="h-12 w-12 flex-shrink-0 rounded-xl bg-neutral-100 bg-cover bg-center sm:w-16"
+                               [style.backgroundImage]="l.images[0] ? 'url(' + l.images[0] + ')' : ''"></div>
+                          <div class="min-w-0 flex-1">
+                            <div class="line-clamp-2 break-words text-[13px] font-medium leading-tight text-black">{{ l.title }}</div>
+                            <div class="mt-0.5 flex items-center gap-1.5 text-[11px] text-neutral-500">
+                              @if (l.rating != null) { <span>★ {{ l.rating }}</span> }
+                              @if (l.reviewsCount) { <span>({{ l.reviewsCount }})</span> }
+                            </div>
+                          </div>
+                          <div class="flex flex-shrink-0 flex-col items-end justify-center text-right">
+                            <div class="text-[13px] font-semibold text-black">
+                              @if (l.priceTotal != null) { {{ formatMoney(l.priceTotal, l.currency) }} } @else { — }
+                            </div>
+                            @if (l.pricePerNight != null) {
+                              <div class="text-[10px] text-neutral-400">{{ formatMoney(l.pricePerNight, l.currency) }}/{{ t('results.night') }}</div>
+                            }
+                          </div>
+                        </a>
+                        <button type="button"
+                                (click)="togglePlan(l)"
+                                [attr.aria-label]="inPlan(l) ? t('results.remove') : t('results.add')"
+                                class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full transition"
+                                [class.bg-black]="inPlan(l)"
+                                [class.text-white]="inPlan(l)"
+                                [class.bg-neutral-100]="!inPlan(l)"
+                                [class.text-neutral-900]="!inPlan(l)"
+                                [class.hover:bg-neutral-200]="!inPlan(l)">
+                          <i class="pi" [class.pi-check]="inPlan(l)" [class.pi-plus]="!inPlan(l)" style="font-size: 11px"></i>
+                        </button>
+                      </li>
+                    }
+                  </ul>
+                  <div class="mt-3 space-y-2">
+                    @if (unit.booking.length > CATALOG_INITIAL) {
+                      <div class="flex items-center justify-between gap-2">
+                        <span class="text-[11px] text-neutral-500">
+                          {{ catalogShown(unit.size, 'booking') > unit.booking.length ? unit.booking.length : catalogShown(unit.size, 'booking') }} {{ t('results.showingOf') }} {{ unit.booking.length }}
+                        </span>
+                        <div class="flex gap-1.5">
+                          @if (catalogShown(unit.size, 'booking') > CATALOG_INITIAL) {
+                            <button type="button" (click)="collapseCatalog(unit.size, 'booking')"
+                                    class="inline-flex items-center gap-1 rounded-full border border-black/10 bg-white px-2.5 py-1 text-[11px] font-medium text-neutral-700 hover:bg-neutral-50">
+                              <i class="pi pi-chevron-up text-[9px]"></i>
+                              {{ t('results.showLess') }}
+                            </button>
+                          }
+                          @if (catalogShown(unit.size, 'booking') < unit.booking.length) {
+                            <button type="button" (click)="showMoreCatalog(unit.size, 'booking')"
+                                    class="inline-flex items-center gap-1 rounded-full bg-black px-2.5 py-1 text-[11px] font-medium text-white hover:bg-neutral-800">
+                              <i class="pi pi-chevron-down text-[9px]"></i>
+                              {{ t('results.showMore') }}
+                            </button>
+                          }
+                        </div>
+                      </div>
+                    }
+                    @if (catalogShown(unit.size, 'booking') >= unit.booking.length && !isCatalogExhausted(unit.size, 'booking')) {
+                      <div class="flex flex-col gap-2 rounded-2xl border border-dashed border-blue-300/60 bg-blue-50/40 p-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div class="flex items-start gap-2 text-[11px] text-blue-800">
+                          <i class="pi pi-info-circle mt-0.5 text-[12px]"></i>
+                          <span>{{ t('results.fetchMoreHint') }}</span>
+                        </div>
+                        <button type="button" (click)="fetchMore(unit.size, 'booking')"
+                                [disabled]="isCatalogLoading(unit.size, 'booking')"
+                                class="inline-flex items-center gap-1.5 self-start rounded-full bg-blue-600 px-3 py-1.5 text-[11px] font-medium text-white hover:bg-blue-700 disabled:opacity-60 sm:self-auto">
+                          @if (isCatalogLoading(unit.size, 'booking')) {
+                            <i class="pi pi-spin pi-spinner text-[10px]"></i>
+                            <span>{{ t('results.fetching') }}</span>
+                          } @else {
+                            <i class="pi pi-cloud-download text-[10px]"></i>
+                            <span>{{ t('results.fetchMore') }} · page {{ catalogCurrentPage(unit.size, 'booking') + 1 }}</span>
+                          }
+                        </button>
+                      </div>
+                    }
+                    @if (isCatalogExhausted(unit.size, 'booking')) {
+                      <div class="rounded-xl border border-dashed border-black/10 px-3 py-2 text-center text-[11px] text-neutral-500">
+                        <i class="pi pi-check-circle mr-1 text-[10px]"></i>
+                        {{ t('results.fetchedAll') }}
+                      </div>
+                    }
+                  </div>
+                </div>
+
+                <div>
+                  <div class="mb-2 flex items-center gap-2">
+                    <span class="rounded-full bg-rose-50 px-2 py-0.5 text-[11px] font-medium text-rose-700">Airbnb</span>
+                  </div>
+                  @if (unit.airbnb.length === 0) {
+                    <div class="rounded-xl border border-dashed border-black/10 px-3 py-4 text-[12px] text-neutral-500">{{ t('results.noListings') }}</div>
+                  }
+                  <ul class="space-y-1.5">
+                    @for (l of slice(sortListings(unit.airbnb), catalogShown(unit.size, 'airbnb')); track l.id) {
+                      <li class="flex items-center gap-2 rounded-2xl border border-black/5 bg-white p-2 transition"
+                          [class.ring-2]="inPlan(l)"
+                          [class.ring-black]="inPlan(l)"
+                          [class.bg-neutral-50]="inPlan(l)">
+                        <a [href]="l.url" target="_blank" rel="noopener"
+                           class="flex min-w-0 flex-1 items-center gap-2.5 hover:opacity-80 sm:gap-3">
+                          <div class="h-12 w-12 flex-shrink-0 rounded-xl bg-neutral-100 bg-cover bg-center sm:w-16"
+                               [style.backgroundImage]="l.images[0] ? 'url(' + l.images[0] + ')' : ''"></div>
+                          <div class="min-w-0 flex-1">
+                            <div class="line-clamp-2 break-words text-[13px] font-medium leading-tight text-black">{{ l.title }}</div>
+                            <div class="mt-0.5 flex items-center gap-1.5 text-[11px] text-neutral-500">
+                              @if (l.rating != null) { <span>★ {{ l.rating }}</span> }
+                              @if (l.reviewsCount) { <span>({{ l.reviewsCount }})</span> }
+                            </div>
+                          </div>
+                          <div class="flex flex-shrink-0 flex-col items-end justify-center text-right">
+                            <div class="text-[13px] font-semibold text-black">
+                              @if (l.priceTotal != null) { {{ formatMoney(l.priceTotal, l.currency) }} } @else { — }
+                            </div>
+                            @if (l.pricePerNight != null) {
+                              <div class="text-[10px] text-neutral-400">{{ formatMoney(l.pricePerNight, l.currency) }}/{{ t('results.night') }}</div>
+                            }
+                          </div>
+                        </a>
+                        <button type="button"
+                                (click)="togglePlan(l)"
+                                [attr.aria-label]="inPlan(l) ? t('results.remove') : t('results.add')"
+                                class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full transition"
+                                [class.bg-black]="inPlan(l)"
+                                [class.text-white]="inPlan(l)"
+                                [class.bg-neutral-100]="!inPlan(l)"
+                                [class.text-neutral-900]="!inPlan(l)"
+                                [class.hover:bg-neutral-200]="!inPlan(l)">
+                          <i class="pi" [class.pi-check]="inPlan(l)" [class.pi-plus]="!inPlan(l)" style="font-size: 11px"></i>
+                        </button>
+                      </li>
+                    }
+                  </ul>
+                  <div class="mt-3 space-y-2">
+                    @if (unit.airbnb.length > CATALOG_INITIAL) {
+                      <div class="flex items-center justify-between gap-2">
+                        <span class="text-[11px] text-neutral-500">
+                          {{ catalogShown(unit.size, 'airbnb') > unit.airbnb.length ? unit.airbnb.length : catalogShown(unit.size, 'airbnb') }} {{ t('results.showingOf') }} {{ unit.airbnb.length }}
+                        </span>
+                        <div class="flex gap-1.5">
+                          @if (catalogShown(unit.size, 'airbnb') > CATALOG_INITIAL) {
+                            <button type="button" (click)="collapseCatalog(unit.size, 'airbnb')"
+                                    class="inline-flex items-center gap-1 rounded-full border border-black/10 bg-white px-2.5 py-1 text-[11px] font-medium text-neutral-700 hover:bg-neutral-50">
+                              <i class="pi pi-chevron-up text-[9px]"></i>
+                              {{ t('results.showLess') }}
+                            </button>
+                          }
+                          @if (catalogShown(unit.size, 'airbnb') < unit.airbnb.length) {
+                            <button type="button" (click)="showMoreCatalog(unit.size, 'airbnb')"
+                                    class="inline-flex items-center gap-1 rounded-full bg-black px-2.5 py-1 text-[11px] font-medium text-white hover:bg-neutral-800">
+                              <i class="pi pi-chevron-down text-[9px]"></i>
+                              {{ t('results.showMore') }}
+                            </button>
+                          }
+                        </div>
+                      </div>
+                    }
+                    @if (catalogShown(unit.size, 'airbnb') >= unit.airbnb.length && !isCatalogExhausted(unit.size, 'airbnb')) {
+                      <div class="flex flex-col gap-2 rounded-2xl border border-dashed border-rose-300/60 bg-rose-50/40 p-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div class="flex items-start gap-2 text-[11px] text-rose-800">
+                          <i class="pi pi-info-circle mt-0.5 text-[12px]"></i>
+                          <span>{{ t('results.fetchMoreHint') }}</span>
+                        </div>
+                        <button type="button" (click)="fetchMore(unit.size, 'airbnb')"
+                                [disabled]="isCatalogLoading(unit.size, 'airbnb')"
+                                class="inline-flex items-center gap-1.5 self-start rounded-full bg-rose-600 px-3 py-1.5 text-[11px] font-medium text-white hover:bg-rose-700 disabled:opacity-60 sm:self-auto">
+                          @if (isCatalogLoading(unit.size, 'airbnb')) {
+                            <i class="pi pi-spin pi-spinner text-[10px]"></i>
+                            <span>{{ t('results.fetching') }}</span>
+                          } @else {
+                            <i class="pi pi-cloud-download text-[10px]"></i>
+                            <span>{{ t('results.fetchMore') }} · page {{ catalogCurrentPage(unit.size, 'airbnb') + 1 }}</span>
+                          }
+                        </button>
+                      </div>
+                    }
+                    @if (isCatalogExhausted(unit.size, 'airbnb')) {
+                      <div class="rounded-xl border border-dashed border-black/10 px-3 py-2 text-center text-[11px] text-neutral-500">
+                        <i class="pi pi-check-circle mr-1 text-[10px]"></i>
+                        {{ t('results.fetchedAll') }}
+                      </div>
+                    }
+                  </div>
+                </div>
+              </div>
+            </section>
+          }
+        </div>
+      </p-tabpanel>
+    </p-tabpanels>
+  </p-tabs>
+} @else if (!error()) {
+  <div class="flex h-40 items-center justify-center">
+    <div class="flex items-center gap-2.5 text-neutral-500">
+      <span class="inline-block h-2 w-2 animate-pulse rounded-full bg-neutral-400"></span>
+      <span class="text-sm">{{ t('results.loading') }}</span>
+    </div>
+  </div>
+}

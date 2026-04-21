@@ -1,0 +1,177 @@
+@import "tailwindcss";
+@import "primeicons/primeicons.css";
+
+:root {
+  --accent: #0a0a0a;
+  --accent-foreground: #ffffff;
+  --surface: #ffffff;
+  --surface-muted: #f5f5f7;
+  --border: rgba(0, 0, 0, 0.08);
+  --text: #0a0a0a;
+  --text-muted: #6e6e73;
+}
+
+html, body {
+  height: 100%;
+  font-family:
+    -apple-system,
+    BlinkMacSystemFont,
+    "SF Pro Text",
+    "SF Pro Display",
+    "Inter",
+    "Segoe UI",
+    Roboto,
+    sans-serif;
+  background: var(--surface-muted);
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  letter-spacing: -0.011em;
+}
+
+h1, h2, h3 {
+  letter-spacing: -0.022em;
+}
+
+/* Apple-style subtle button focus */
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+[role="button"]:focus-visible {
+  outline: 2px solid rgba(0, 122, 255, 0.5);
+  outline-offset: 2px;
+}
+
+/* PrimeNG input uniform height & calm look */
+.p-inputtext,
+.p-select,
+.p-datepicker,
+.p-datepicker .p-inputtext,
+.p-inputnumber,
+.p-inputnumber-input {
+  width: 100%;
+}
+
+.p-inputtext,
+.p-select,
+.p-datepicker .p-inputtext,
+.p-inputnumber-input {
+  height: 44px !important;
+  border-radius: 12px !important;
+  border-color: var(--border) !important;
+  background: var(--surface) !important;
+  font-size: 15px !important;
+  padding: 0 14px !important;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  box-sizing: border-box;
+}
+
+.p-select {
+  display: flex;
+  align-items: center;
+}
+
+.p-select-label {
+  padding: 0 !important;
+  font-size: 15px !important;
+  line-height: 44px !important;
+}
+
+.p-select-dropdown {
+  width: 2.5rem !important;
+  color: var(--text-muted) !important;
+}
+
+.p-datepicker-input-icon-container {
+  height: 44px !important;
+}
+
+.p-datepicker-input-icon {
+  color: var(--text-muted) !important;
+}
+
+.p-inputtext:focus,
+.p-inputnumber-input:focus,
+.p-select:not(.p-disabled).p-focus,
+.p-datepicker .p-inputtext:focus {
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 0 3px rgba(10, 10, 10, 0.08) !important;
+}
+
+/* InputNumber with horizontal layout */
+.p-inputnumber.p-inputnumber-horizontal {
+  display: flex;
+  align-items: stretch;
+  gap: 6px;
+}
+
+.p-inputnumber.p-inputnumber-horizontal .p-inputnumber-button {
+  width: 44px !important;
+  height: 44px !important;
+  border-radius: 12px !important;
+  background: var(--surface) !important;
+  border: 1px solid var(--border) !important;
+  color: var(--text) !important;
+  flex: 0 0 auto;
+}
+
+.p-inputnumber.p-inputnumber-horizontal .p-inputnumber-button:hover {
+  background: var(--surface-muted) !important;
+}
+
+.p-inputnumber.p-inputnumber-horizontal .p-inputnumber-input {
+  text-align: center;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.p-button {
+  border-radius: 12px !important;
+  font-weight: 500 !important;
+  letter-spacing: -0.01em;
+  transition: transform 0.08s ease, opacity 0.12s ease, background-color 0.12s ease;
+}
+
+.p-button:active { transform: scale(0.98); }
+
+.p-button:not(.p-button-outlined):not(.p-button-text) {
+  background: var(--accent) !important;
+  border-color: var(--accent) !important;
+  color: var(--accent-foreground) !important;
+}
+
+.p-button:not(.p-button-outlined):not(.p-button-text):hover {
+  opacity: 0.92;
+}
+
+.p-button-text {
+  color: var(--text-muted) !important;
+}
+
+.p-datepicker-panel {
+  border-radius: 16px !important;
+  border: 1px solid var(--border) !important;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.08) !important;
+}
+
+.p-select-overlay {
+  border-radius: 12px !important;
+  border: 1px solid var(--border) !important;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08) !important;
+}
+
+.p-checkbox-box {
+  border-radius: 6px !important;
+  border-color: var(--border) !important;
+}
+
+.p-checkbox.p-highlight .p-checkbox-box {
+  background: var(--accent) !important;
+  border-color: var(--accent) !important;
+}
+
+@media print {
+  body { background: white; }
+  .no-print { display: none !important; }
+  .print-break { page-break-after: always; }
+}

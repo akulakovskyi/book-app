@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: booking-app
+    runtime: docker
+    plan: free
+    region: frankfurt
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: HEADLESS
+        value: "1"
+      - key: CURRENCY
+        value: EUR
+      - key: LANGUAGE
+        value: en-us
+      - key: CACHE_TTL_MINUTES
+        value: "180"
+      - key: DATA_DIR
+        value: /app/data
