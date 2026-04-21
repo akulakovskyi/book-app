@@ -21,7 +21,8 @@ import type {
 
 const TOP_PER_SOURCE = 50;
 const ALTERNATIVES_PER_SPLIT = 50;
-const POOL_DEPTH_PER_SIZE = 18;
+const POOL_DEPTH_PER_SIZE = 40;
+const MAX_APPEARANCES_PER_LISTING = 3;
 
 export async function runComparison(input: SearchInput): Promise<ComparisonResult> {
   const splitOpts = {
@@ -99,7 +100,7 @@ function buildSplitGroup(
     if (pool.length < count) return null;
     const combos = kCombinations(pool, count)
       .sort((a, b) => totalOf(a) - totalOf(b))
-      .slice(0, ALTERNATIVES_PER_SPLIT * 3);
+      .slice(0, ALTERNATIVES_PER_SPLIT * 6);
     perSizeCombos.push({ size, combos });
   }
 
@@ -113,20 +114,32 @@ function buildSplitGroup(
     }
     joined = next
       .sort((a, b) => totalOf(a) - totalOf(b))
-      .slice(0, ALTERNATIVES_PER_SPLIT * 3);
+      .slice(0, ALTERNATIVES_PER_SPLIT * 6);
   }
 
   const seenSignatures = new Set<string>();
+  const appearances = new Map<string, number>();
   const alternatives: SplitOption[] = [];
-  for (const listings of joined) {
-    const ids = listings.map((l) => l.id);
-    if (new Set(ids).size !== ids.length) continue;
-    const sig = [...ids].sort().join('|');
-    if (seenSignatures.has(sig)) continue;
-    seenSignatures.add(sig);
 
+  const tryAccept = (listings: Listing[], cap: number): boolean => {
+    const ids = listings.map((l) => l.id);
+    if (new Set(ids).size !== ids.length) return false;
+    if (ids.some((id) => (appearances.get(id) ?? 0) >= cap)) return false;
+    const sig = [...ids].sort().join('|');
+    if (seenSignatures.has(sig)) return false;
     const option = buildSplitOption(units, listings);
-    if (option) alternatives.push(option);
+    if (!option) return false;
+    seenSignatures.add(sig);
+    alternatives.push(option);
+    for (const id of ids) appearances.set(id, (appearances.get(id) ?? 0) + 1);
+    return true;
+  };
+
+  for (let cap = 1; cap <= MAX_APPEARANCES_PER_LISTING; cap++) {
+    for (const listings of joined) {
+      if (alternatives.length >= ALTERNATIVES_PER_SPLIT) break;
+      tryAccept(listings, cap);
+    }
     if (alternatives.length >= ALTERNATIVES_PER_SPLIT) break;
   }
 

@@ -13,7 +13,7 @@ import { BookingApi } from '../../services/booking-api';
 import { I18n, useT, type I18nKey } from '../../services/i18n';
 import { MapView } from '../../components/map-view';
 import { distanceKm } from '../../../shared/geo';
-import type { ComparisonResult, Listing, SplitOption } from '../../../shared/types';
+import type { ComparisonResult, Listing, Source, SplitOption, UnitPick } from '../../../shared/types';
 
 type SortKey = 'priceAsc' | 'priceDesc' | 'ratingDesc';
 
@@ -66,6 +66,8 @@ export class ResultsPage {
   protected readonly showBrowseOnMap = signal<boolean>(false);
   protected readonly sortAltsByClosest = signal<boolean>(false);
   protected readonly expandedAltId = signal<string | null>(null);
+  protected readonly pickOverrides = signal<Record<string, Listing>>({});
+  protected readonly openSwapKey = signal<string | null>(null);
   protected readonly geocoding = signal(false);
   private readonly geocodeInFlight = new Set<string>();
   protected readonly SPLIT_INITIAL = SPLIT_INITIAL;
@@ -193,7 +195,7 @@ export class ResultsPage {
   }
 
   altMaxDistanceKm(alt: SplitOption): number | null {
-    const coords = alt.picks
+    const coords = this.effectivePicks(alt)
       .map((p) => p.listing.coordinate)
       .filter((c): c is NonNullable<typeof c> => !!c);
     if (coords.length < 2) return null;
@@ -207,12 +209,101 @@ export class ResultsPage {
     return max;
   }
 
+  private pickKey(altId: string, pickIndex: number): string {
+    return `${altId}::${pickIndex}`;
+  }
+
+  effectivePicks(alt: SplitOption): UnitPick[] {
+    const ovs = this.pickOverrides();
+    return alt.picks.map((p, i) => {
+      const rep = ovs[this.pickKey(alt.id, i)];
+      return rep ? { unitSize: p.unitSize, listing: rep } : p;
+    });
+  }
+
+  altTotalPrice(alt: SplitOption): number {
+    return this.effectivePicks(alt).reduce((s, p) => s + (p.listing.priceTotal ?? 0), 0);
+  }
+
+  altPricePerPerson(alt: SplitOption): number {
+    const guests = alt.picks.reduce((s, p) => s + p.unitSize, 0);
+    return guests > 0 ? this.altTotalPrice(alt) / guests : 0;
+  }
+
+  altCurrency(alt: SplitOption): string {
+    return this.effectivePicks(alt)[0]?.listing.currency ?? alt.currency;
+  }
+
+  altSources(alt: SplitOption): Source[] {
+    return [...new Set(this.effectivePicks(alt).map((p) => p.listing.source))];
+  }
+
+  altAverageRating(alt: SplitOption): number | null {
+    const ratings = this.effectivePicks(alt)
+      .map((p) => p.listing.rating)
+      .filter((r): r is number => r != null);
+    if (!ratings.length) return null;
+    return Math.round((ratings.reduce((a, b) => a + b, 0) / ratings.length) * 10) / 10;
+  }
+
+  altCustomized(alt: SplitOption): boolean {
+    const ovs = this.pickOverrides();
+    for (let i = 0; i < alt.picks.length; i++) {
+      if (ovs[this.pickKey(alt.id, i)]) return true;
+    }
+    return false;
+  }
+
+  isPickCustomized(alt: SplitOption, pickIndex: number): boolean {
+    return !!this.pickOverrides()[this.pickKey(alt.id, pickIndex)];
+  }
+
+  isSwapOpen(alt: SplitOption, pickIndex: number): boolean {
+    return this.openSwapKey() === this.pickKey(alt.id, pickIndex);
+  }
+
+  toggleSwap(alt: SplitOption, pickIndex: number): void {
+    const key = this.pickKey(alt.id, pickIndex);
+    this.openSwapKey.update((cur) => (cur === key ? null : key));
+  }
+
+  swapCandidates(alt: SplitOption, pickIndex: number): Listing[] {
+    const r = this.result();
+    if (!r) return [];
+    const unitSize = alt.picks[pickIndex]?.unitSize;
+    if (unitSize == null) return [];
+    const catalog = r.perUnit.find((u) => u.size === unitSize);
+    if (!catalog) return [];
+    const inUse = new Set(this.effectivePicks(alt).map((p) => p.listing.id));
+    return [...catalog.booking, ...catalog.airbnb]
+      .filter((l) => !inUse.has(l.id) && l.priceTotal != null)
+      .sort((a, b) => (a.priceTotal ?? Infinity) - (b.priceTotal ?? Infinity));
+  }
+
+  applySwap(alt: SplitOption, pickIndex: number, listing: Listing): void {
+    const key = this.pickKey(alt.id, pickIndex);
+    this.pickOverrides.update((m) => ({ ...m, [key]: listing }));
+    this.openSwapKey.set(null);
+    if (!listing.coordinate) this.resolveCoordinate(listing);
+  }
+
+  resetPick(alt: SplitOption, pickIndex: number): void {
+    const key = this.pickKey(alt.id, pickIndex);
+    this.pickOverrides.update((m) => {
+      if (!(key in m)) return m;
+      const next = { ...m };
+      delete next[key];
+      return next;
+    });
+    this.openSwapKey.set(null);
+  }
+
   sortedAlternatives(alts: SplitOption[]): SplitOption[] {
     if (!this.sortAltsByClosest()) return alts;
     return [...alts].sort((a, b) => {
       const da = this.altMaxDistanceKm(a);
       const db = this.altMaxDistanceKm(b);
-      if (da == null && db == null) return a.totalPrice - b.totalPrice;
+      if (da == null && db == null) return this.altTotalPrice(a) - this.altTotalPrice(b);
       if (da == null) return 1;
       if (db == null) return -1;
       return da - db;
@@ -232,7 +323,7 @@ export class ResultsPage {
       return;
     }
     this.expandedAltId.set(alt.id);
-    for (const pick of alt.picks) {
+    for (const pick of this.effectivePicks(alt)) {
       if (!pick.listing.coordinate) this.resolveCoordinate(pick.listing);
     }
   }
@@ -242,7 +333,7 @@ export class ResultsPage {
   }
 
   altListings(alt: SplitOption): Listing[] {
-    return alt.picks.map((p) => p.listing);
+    return this.effectivePicks(alt).map((p) => p.listing);
   }
 
   formatDistance(km: number): string {
@@ -325,6 +416,19 @@ export class ResultsPage {
     this.plan.update((prev) =>
       prev.map((l) => (l.id === listingId ? { ...l, coordinate: coord } : l)),
     );
+    this.pickOverrides.update((prev) => {
+      let changed = false;
+      const next: Record<string, Listing> = {};
+      for (const [k, v] of Object.entries(prev)) {
+        if (v.id === listingId) {
+          next[k] = { ...v, coordinate: coord };
+          changed = true;
+        } else {
+          next[k] = v;
+        }
+      }
+      return changed ? next : prev;
+    });
   }
 
   togglePlan(listing: Listing): void {
