@@ -17,7 +17,9 @@ ENV DATA_DIR=/app/data
 ENV PORT=4000
 
 COPY package.json package-lock.json ./
-RUN npm ci --omit=dev --ignore-scripts && npm cache clean --force
+RUN npm ci --omit=dev --ignore-scripts \
+  && npm rebuild better-sqlite3 \
+  && npm cache clean --force
 
 COPY --from=build /app/dist ./dist
 RUN mkdir -p /app/data/reports
