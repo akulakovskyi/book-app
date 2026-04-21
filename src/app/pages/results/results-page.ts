@@ -7,10 +7,13 @@ import { TagModule } from 'primeng/tag';
 import { CardModule } from 'primeng/card';
 import { TooltipModule } from 'primeng/tooltip';
 import { TabsModule } from 'primeng/tabs';
+import { InputNumberModule } from 'primeng/inputnumber';
+import { ToggleSwitchModule } from 'primeng/toggleswitch';
 import { BookingApi } from '../../services/booking-api';
 import { I18n, useT, type I18nKey } from '../../services/i18n';
 import { MapView } from '../../components/map-view';
-import type { ComparisonResult, Listing } from '../../../shared/types';
+import { distanceKm } from '../../../shared/geo';
+import type { ComparisonResult, Listing, SplitOption } from '../../../shared/types';
 
 type SortKey = 'priceAsc' | 'priceDesc' | 'ratingDesc';
 
@@ -36,6 +39,8 @@ const CATALOG_STEP = 10;
     CardModule,
     TooltipModule,
     TabsModule,
+    InputNumberModule,
+    ToggleSwitchModule,
     MapView,
   ],
   templateUrl: './results-page.html',
@@ -55,8 +60,24 @@ export class ResultsPage {
   protected readonly catalogPage = signal<Record<string, number>>({});
   protected readonly catalogLoading = signal<Record<string, boolean>>({});
   protected readonly catalogExhausted = signal<Record<string, boolean>>({});
+  protected readonly maxDistanceKm = signal<number | null>(null);
+  protected readonly minRating = signal<number | null>(null);
+  protected readonly maxPricePerNight = signal<number | null>(null);
+  protected readonly showBrowseOnMap = signal<boolean>(false);
+  protected readonly sortAltsByClosest = signal<boolean>(false);
+  protected readonly expandedAltId = signal<string | null>(null);
+  protected readonly geocoding = signal(false);
+  private readonly geocodeInFlight = new Set<string>();
   protected readonly SPLIT_INITIAL = SPLIT_INITIAL;
   protected readonly CATALOG_INITIAL = CATALOG_INITIAL;
+
+  protected readonly filtersActive = computed(() => {
+    return [
+      this.maxDistanceKm() != null,
+      this.minRating() != null,
+      this.maxPricePerNight() != null,
+    ].filter(Boolean).length;
+  });
   protected readonly sortOptions = computed(() => {
     void this.i18n.lang();
     return (Object.keys(SORT_KEY_MAP) as SortKey[]).map((value) => ({
@@ -102,8 +123,9 @@ export class ResultsPage {
   }
 
   sortListings(listings: Listing[]): Listing[] {
+    const filtered = listings.filter((l) => this.passesFilter(l));
     const key = this.sortKey();
-    const sorted = [...listings];
+    const sorted = [...filtered];
     if (key === 'priceAsc') {
       sorted.sort((a, b) => (a.priceTotal ?? Infinity) - (b.priceTotal ?? Infinity));
     } else if (key === 'priceDesc') {
@@ -112,6 +134,197 @@ export class ResultsPage {
       sorted.sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0));
     }
     return sorted;
+  }
+
+  passesFilter(l: Listing): boolean {
+    const minRating = this.minRating();
+    if (minRating != null && (l.rating ?? 0) < minRating) return false;
+
+    const maxPrice = this.maxPricePerNight();
+    if (maxPrice != null && (l.pricePerNight ?? Infinity) > maxPrice) return false;
+
+    const maxDist = this.maxDistanceKm();
+    if (maxDist != null) {
+      const center = this.result()?.center;
+      if (center && l.coordinate) {
+        const d = distanceKm(center, l.coordinate);
+        if (d > maxDist) return false;
+      }
+    }
+    return true;
+  }
+
+  sourceTotals(unit: { size: number; booking: Listing[]; airbnb: Listing[] }, source: 'booking' | 'airbnb'): { shown: number; total: number } {
+    const list = source === 'booking' ? unit.booking : unit.airbnb;
+    return { shown: this.sortListings(list).length, total: list.length };
+  }
+
+  clearFilters(): void {
+    this.maxDistanceKm.set(null);
+    this.minRating.set(null);
+    this.maxPricePerNight.set(null);
+  }
+
+  filteredCatalogListings(): Listing[] {
+    const r = this.result();
+    if (!r) return [];
+    const out: Listing[] = [];
+    const seen = new Set<string>();
+    for (const u of r.perUnit) {
+      for (const l of [...u.booking, ...u.airbnb]) {
+        if (seen.has(l.id)) continue;
+        seen.add(l.id);
+        if (this.passesFilter(l)) out.push(l);
+      }
+    }
+    return out;
+  }
+
+  mapListings(): Listing[] {
+    const plan = this.plan();
+    if (!this.showBrowseOnMap()) return plan;
+    const planIds = new Set(plan.map((l) => l.id));
+    const extras = this.filteredCatalogListings().filter((l) => !planIds.has(l.id));
+    return [...plan, ...extras];
+  }
+
+  mapHighlightIds(): string[] {
+    return this.plan().map((l) => l.id);
+  }
+
+  altMaxDistanceKm(alt: SplitOption): number | null {
+    const coords = alt.picks
+      .map((p) => p.listing.coordinate)
+      .filter((c): c is NonNullable<typeof c> => !!c);
+    if (coords.length < 2) return null;
+    let max = 0;
+    for (let i = 0; i < coords.length; i++) {
+      for (let j = i + 1; j < coords.length; j++) {
+        const d = distanceKm(coords[i], coords[j]);
+        if (d > max) max = d;
+      }
+    }
+    return max;
+  }
+
+  sortedAlternatives(alts: SplitOption[]): SplitOption[] {
+    if (!this.sortAltsByClosest()) return alts;
+    return [...alts].sort((a, b) => {
+      const da = this.altMaxDistanceKm(a);
+      const db = this.altMaxDistanceKm(b);
+      if (da == null && db == null) return a.totalPrice - b.totalPrice;
+      if (da == null) return 1;
+      if (db == null) return -1;
+      return da - db;
+    });
+  }
+
+  toggleSortByClosest(): void {
+    const next = !this.sortAltsByClosest();
+    this.sortAltsByClosest.set(next);
+    if (next) this.batchResolveCoords();
+  }
+
+  toggleAltMap(alt: SplitOption): void {
+    const current = this.expandedAltId();
+    if (current === alt.id) {
+      this.expandedAltId.set(null);
+      return;
+    }
+    this.expandedAltId.set(alt.id);
+    for (const pick of alt.picks) {
+      if (!pick.listing.coordinate) this.resolveCoordinate(pick.listing);
+    }
+  }
+
+  isAltExpanded(altId: string): boolean {
+    return this.expandedAltId() === altId;
+  }
+
+  altListings(alt: SplitOption): Listing[] {
+    return alt.picks.map((p) => p.listing);
+  }
+
+  formatDistance(km: number): string {
+    if (km < 1) return `${Math.round(km * 1000)} m`;
+    return `${km.toFixed(km < 10 ? 1 : 0)} km`;
+  }
+
+  onDistanceFilterChange(value: number | null): void {
+    this.maxDistanceKm.set(value);
+    if (value != null) this.batchResolveCoords();
+  }
+
+  private batchResolveCoords(): void {
+    const r = this.result();
+    if (!r) return;
+    const destination = r.input.destination;
+    if (!destination) return;
+
+    const toResolve: Listing[] = [];
+    const seen = new Set<string>();
+    for (const u of r.perUnit) {
+      for (const l of [...u.booking, ...u.airbnb]) {
+        if (seen.has(l.id)) continue;
+        seen.add(l.id);
+        if (!l.coordinate && !this.geocodeInFlight.has(l.id)) toResolve.push(l);
+      }
+    }
+    if (toResolve.length === 0) return;
+
+    this.geocoding.set(true);
+    for (const l of toResolve) this.geocodeInFlight.add(l.id);
+
+    const runNext = (idx: number) => {
+      if (idx >= toResolve.length) {
+        this.geocoding.set(false);
+        return;
+      }
+      const listing = toResolve[idx];
+      this.api
+        .geocodeListing({
+          title: listing.title,
+          location: listing.location ?? undefined,
+          destination,
+        })
+        .subscribe({
+          next: (coord) => {
+            this.updateListingCoord(listing.id, coord);
+          },
+          error: () => undefined,
+          complete: () => {
+            this.geocodeInFlight.delete(listing.id);
+            runNext(idx + 1);
+          },
+        });
+    };
+    runNext(0);
+  }
+
+  private updateListingCoord(listingId: string, coord: Listing['coordinate']): void {
+    this.result.update((prev) => {
+      if (!prev) return prev;
+      const perUnit = prev.perUnit.map((u) => ({
+        ...u,
+        booking: u.booking.map((l) => (l.id === listingId ? { ...l, coordinate: coord } : l)),
+        airbnb: u.airbnb.map((l) => (l.id === listingId ? { ...l, coordinate: coord } : l)),
+      }));
+      const splitGroups = prev.splitGroups.map((g) => ({
+        ...g,
+        alternatives: g.alternatives.map((alt) => ({
+          ...alt,
+          picks: alt.picks.map((pick) =>
+            pick.listing.id === listingId
+              ? { ...pick, listing: { ...pick.listing, coordinate: coord } }
+              : pick,
+          ),
+        })),
+      }));
+      return { ...prev, perUnit, splitGroups };
+    });
+    this.plan.update((prev) =>
+      prev.map((l) => (l.id === listingId ? { ...l, coordinate: coord } : l)),
+    );
   }
 
   togglePlan(listing: Listing): void {
@@ -128,6 +341,8 @@ export class ResultsPage {
   private resolveCoordinate(listing: Listing): void {
     const destination = this.result()?.input.destination ?? '';
     if (!destination) return;
+    if (this.geocodeInFlight.has(listing.id)) return;
+    this.geocodeInFlight.add(listing.id);
 
     this.api
       .geocodeListing({
@@ -136,22 +351,9 @@ export class ResultsPage {
         destination,
       })
       .subscribe({
-        next: (coord) => {
-          const updated = this.plan().map((l) =>
-            l.id === listing.id ? { ...l, coordinate: coord } : l,
-          );
-          this.plan.set(updated);
-          this.result.update((prev) => {
-            if (!prev) return prev;
-            const perUnit = prev.perUnit.map((u) => ({
-              ...u,
-              booking: u.booking.map((l) => (l.id === listing.id ? { ...l, coordinate: coord } : l)),
-              airbnb: u.airbnb.map((l) => (l.id === listing.id ? { ...l, coordinate: coord } : l)),
-            }));
-            return { ...prev, perUnit };
-          });
-        },
+        next: (coord) => this.updateListingCoord(listing.id, coord),
         error: () => undefined,
+        complete: () => this.geocodeInFlight.delete(listing.id),
       });
   }
 

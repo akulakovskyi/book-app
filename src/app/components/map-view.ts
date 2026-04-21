@@ -14,6 +14,7 @@ import type { Coordinate, Listing } from '../../shared/types';
 
 type LeafletMap = import('leaflet').Map;
 type LeafletMarker = import('leaflet').Marker;
+type LeafletPolyline = import('leaflet').Polyline;
 type LeafletLib = typeof import('leaflet');
 
 @Component({
@@ -36,14 +37,17 @@ export class MapView implements AfterViewInit, OnChanges, OnDestroy {
   private readonly platformId = inject(PLATFORM_ID);
 
   @Input() listings: Listing[] = [];
+  @Input() highlightIds: string[] = [];
   @Input() center: Coordinate | null | undefined = null;
   @Input() emptyHint = 'Pick listings to see them on the map';
+  @Input() connect = false;
 
   @ViewChild('mapEl') mapEl?: ElementRef<HTMLDivElement>;
 
   private L?: LeafletLib;
   private map?: LeafletMap;
   private markers: LeafletMarker[] = [];
+  private polylines: LeafletPolyline[] = [];
   private resizeObserver?: ResizeObserver;
 
   hasCoords(): boolean {
@@ -98,25 +102,60 @@ export class MapView implements AfterViewInit, OnChanges, OnDestroy {
 
     for (const m of this.markers) m.remove();
     this.markers = [];
+    for (const p of this.polylines) p.remove();
+    this.polylines = [];
 
     const withCoords = this.listings.filter(
       (l): l is Listing & { coordinate: Coordinate } => !!l.coordinate,
     );
 
     const positioned = this.spreadOverlapping(withCoords);
+    const highlight = new Set(this.highlightIds);
 
     for (const { listing, lat, lon } of positioned) {
-      const icon = this.L.divIcon({
-        html: this.pinHtml(listing),
-        className: 'listing-marker',
-        iconSize: [80, 34],
-        iconAnchor: [40, 34],
+      const isHighlighted = highlight.size === 0 || highlight.has(listing.id);
+      const icon = isHighlighted
+        ? this.L.divIcon({
+            html: this.pinHtml(listing),
+            className: 'listing-marker',
+            iconSize: [80, 34],
+            iconAnchor: [40, 34],
+          })
+        : this.L.divIcon({
+            html: this.dotHtml(listing),
+            className: 'listing-dot',
+            iconSize: [14, 14],
+            iconAnchor: [7, 7],
+          });
+      const marker = this.L.marker([lat, lon], {
+        icon,
+        zIndexOffset: isHighlighted ? 1000 : 0,
       });
-      const marker = this.L.marker([lat, lon], { icon });
       const popupHtml = this.popupHtml(listing);
       marker.bindPopup(popupHtml);
       marker.addTo(this.map);
       this.markers.push(marker);
+    }
+
+    if (this.connect && positioned.length >= 2) {
+      for (let i = 0; i < positioned.length; i++) {
+        for (let j = i + 1; j < positioned.length; j++) {
+          const line = this.L.polyline(
+            [
+              [positioned[i].lat, positioned[i].lon],
+              [positioned[j].lat, positioned[j].lon],
+            ],
+            {
+              color: '#0a0a0a',
+              weight: 2,
+              opacity: 0.5,
+              dashArray: '6 6',
+            },
+          );
+          line.addTo(this.map);
+          this.polylines.push(line);
+        }
+      }
     }
 
     if (positioned.length > 1) {
@@ -158,6 +197,16 @@ export class MapView implements AfterViewInit, OnChanges, OnDestroy {
       });
     }
     return out;
+  }
+
+  private dotHtml(l: Listing): string {
+    const bg = l.source === 'booking' ? '#1e40af' : '#b91c1c';
+    return `<div style="
+      width:12px;height:12px;border-radius:9999px;
+      background:${bg};border:2px solid white;
+      box-shadow:0 1px 4px rgba(0,0,0,0.25);
+      opacity:0.85;
+    "></div>`;
   }
 
   private pinHtml(l: Listing): string {
