@@ -11,6 +11,11 @@ export interface SearchInput {
   minUnitSize?: number;
 }
 
+export interface Coordinate {
+  lat: number;
+  lon: number;
+}
+
 export interface Listing {
   id: string;
   source: Source;
@@ -29,6 +34,7 @@ export interface Listing {
   isHostel: boolean;
   location: string | null;
   amenities: string[];
+  coordinate?: Coordinate | null;
   raw?: unknown;
 }
 
@@ -67,4 +73,5 @@ export interface ComparisonResult {
   createdAt: string;
   splitGroups: SplitGroup[];
   perUnit: UnitCatalog[];
+  center?: Coordinate | null;
 }

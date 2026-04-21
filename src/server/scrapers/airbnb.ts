@@ -29,7 +29,8 @@ export async function searchAirbnb(
     await autoScroll(page, 3);
 
     const nights = nightsBetween(input.checkIn, input.checkOut);
-    const listings = await extractListings(page, unitGuests, nights, input.currency ?? config.currency);
+    const coords = await extractCoordinates(page);
+    const listings = await extractListings(page, unitGuests, nights, input.currency ?? config.currency, coords);
     const filtered = filterListings(listings, input.excludeHostels);
     writeScrapeCache(cacheKey, 'airbnb', input, unitGuests, filtered);
     return filtered;
@@ -75,11 +76,39 @@ async function autoScroll(page: Page, steps: number): Promise<void> {
   }
 }
 
+async function extractCoordinates(page: Page): Promise<Record<string, { lat: number; lon: number }>> {
+  return await page.evaluate(() => {
+    const out: Record<string, { lat: number; lon: number }> = {};
+    const scripts = Array.from(document.querySelectorAll('script'));
+    const patterns = [
+      /"id":\s*"(\d+)"[^{}]*?"coordinate":\s*\{\s*"latitude":\s*(-?[\d.]+)\s*,\s*"longitude":\s*(-?[\d.]+)/g,
+      /"listingId":\s*"?(\d+)"?[^{}]*?"lat":\s*(-?[\d.]+)[^{}]*?"lng":\s*(-?[\d.]+)/g,
+      /"listing":\s*\{[^{}]*?"id":\s*"(\d+)"[^{}]*?\},[^{}]*?"coordinate":\s*\{\s*"latitude":\s*(-?[\d.]+)\s*,\s*"longitude":\s*(-?[\d.]+)/g,
+    ];
+    for (const s of scripts) {
+      const text = s.textContent ?? '';
+      if (!text.includes('latitude') && !text.includes('"lat"')) continue;
+      for (const re of patterns) {
+        for (const m of text.matchAll(re)) {
+          const id = m[1];
+          const lat = parseFloat(m[2]);
+          const lon = parseFloat(m[3]);
+          if (!Number.isFinite(lat) || !Number.isFinite(lon)) continue;
+          if (lat === 0 && lon === 0) continue;
+          if (!out[id]) out[id] = { lat, lon };
+        }
+      }
+    }
+    return out;
+  });
+}
+
 async function extractListings(
   page: Page,
   unitGuests: number,
   nights: number,
   fallbackCurrency: string,
+  coords: Record<string, { lat: number; lon: number }>,
 ): Promise<Listing[]> {
   const raw = await page.$$eval(
     '[itemprop="itemListElement"], [data-testid="card-container"]',
@@ -124,6 +153,7 @@ async function extractListings(
       const beds = parseInt(/(\d+)\s*bed/i.exec(r.subtitleTexts.join(' '))?.[1] ?? '', 10);
       const bedrooms = parseInt(/(\d+)\s*bedroom/i.exec(r.subtitleTexts.join(' '))?.[1] ?? '', 10);
 
+      const coord = coords[r.id] ?? null;
       return {
         id: `airbnb:${r.id}`,
         source: 'airbnb' as const,
@@ -142,6 +172,7 @@ async function extractListings(
         isHostel: detectHostel(r.title, propertyType, r.subtitleTexts.join(' ')),
         location: r.subtitleTexts[1] ?? null,
         amenities: [],
+        coordinate: coord,
       };
     });
 

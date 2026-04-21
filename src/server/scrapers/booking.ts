@@ -29,7 +29,8 @@ export async function searchBooking(
     await autoScroll(page, 4);
 
     const nights = nightsBetween(input.checkIn, input.checkOut);
-    const listings = await extractListings(page, unitGuests, nights, input.currency ?? config.currency);
+    const coords = await extractCoordinates(page);
+    const listings = await extractListings(page, unitGuests, nights, input.currency ?? config.currency, coords);
     const filtered = filterListings(listings, input.excludeHostels);
     writeScrapeCache(cacheKey, 'booking', input, unitGuests, filtered);
     return filtered;
@@ -78,11 +79,38 @@ async function autoScroll(page: Page, steps: number): Promise<void> {
   }
 }
 
+async function extractCoordinates(page: Page): Promise<Record<string, { lat: number; lon: number }>> {
+  return await page.evaluate(() => {
+    const out: Record<string, { lat: number; lon: number }> = {};
+    const scripts = Array.from(document.querySelectorAll('script'));
+    const patterns = [
+      /"hotel_id":\s*(\d+)[^{}]*?"latitude":\s*(-?[\d.]+)[^{}]*?"longitude":\s*(-?[\d.]+)/g,
+      /"id":\s*(\d+)[^{}]*?"latitude":\s*(-?[\d.]+)[^{}]*?"longitude":\s*(-?[\d.]+)/g,
+    ];
+    for (const s of scripts) {
+      const text = s.textContent ?? '';
+      if (!text.includes('latitude')) continue;
+      for (const re of patterns) {
+        for (const m of text.matchAll(re)) {
+          const id = m[1];
+          const lat = parseFloat(m[2]);
+          const lon = parseFloat(m[3]);
+          if (!Number.isFinite(lat) || !Number.isFinite(lon)) continue;
+          if (lat === 0 && lon === 0) continue;
+          if (!out[id]) out[id] = { lat, lon };
+        }
+      }
+    }
+    return out;
+  });
+}
+
 async function extractListings(
   page: Page,
   unitGuests: number,
   nights: number,
   fallbackCurrency: string,
+  coords: Record<string, { lat: number; lon: number }>,
 ): Promise<Listing[]> {
   const raw = await page.$$eval(
     '[data-testid="property-card"]',
@@ -130,6 +158,8 @@ async function extractListings(
       const beds = parseInt(/(\d+)\s*bed/i.exec(r.unitConfigText)?.[1] ?? '', 10);
       const bedrooms = parseInt(/(\d+)\s*bedroom/i.exec(r.unitConfigText)?.[1] ?? '', 10);
 
+      const rawId = String(r.id).replace(/^.*\//, '').split('?')[0];
+      const coord = coords[rawId] ?? null;
       return {
         id: `booking:${r.id}`,
         source: 'booking' as const,
@@ -148,6 +178,7 @@ async function extractListings(
         isHostel: detectHostel(r.title, r.recommendedText, r.unitConfigText),
         location: r.location,
         amenities: [],
+        coordinate: coord,
       };
     });
 

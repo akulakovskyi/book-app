@@ -180,6 +180,22 @@
 
       <!-- Tab 2: Build your own -->
       <p-tabpanel value="custom">
+        <section class="mb-6 sm:mb-8">
+          <div class="mb-3 flex items-baseline justify-between">
+            <h2 class="flex items-center gap-2 text-lg font-semibold tracking-tight text-black sm:text-xl">
+              <span class="inline-flex h-6 w-6 items-center justify-center rounded-lg bg-black text-white">
+                <i class="pi pi-map text-[11px]"></i>
+              </span>
+              {{ t('results.mapTitle') }}
+            </h2>
+            <span class="hidden text-[11px] text-neutral-500 sm:inline">{{ t('results.mapLegend') }}</span>
+          </div>
+          <app-map-view
+            [listings]="plan()"
+            [center]="r.center"
+            [emptyHint]="t('results.mapHint')" />
+        </section>
+
         @if (plan().length === 0) {
           <section class="mb-6 rounded-3xl border-2 border-dashed border-black/10 bg-white/60 p-6 text-center sm:mb-8 sm:p-10">
             <div class="mx-auto inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-black text-white">

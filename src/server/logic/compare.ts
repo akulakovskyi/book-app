@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { searchBooking } from '../scrapers/booking.js';
 import { searchAirbnb } from '../scrapers/airbnb.js';
 import { nightsBetween } from '../scrapers/util.js';
+import { geocodeCity } from './geocode.js';
 import {
   DEFAULT_SPLIT_OPTIONS,
   enumerateSplits,
@@ -72,6 +73,8 @@ export async function runComparison(input: SearchInput): Promise<ComparisonResul
       };
     });
 
+  const center = await geocodeCity(input.destination);
+
   return {
     id: randomUUID(),
     input,
@@ -79,6 +82,7 @@ export async function runComparison(input: SearchInput): Promise<ComparisonResul
     createdAt: new Date().toISOString(),
     splitGroups,
     perUnit: catalog,
+    center,
   };
 }
 

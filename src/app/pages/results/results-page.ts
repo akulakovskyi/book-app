@@ -9,6 +9,7 @@ import { TooltipModule } from 'primeng/tooltip';
 import { TabsModule } from 'primeng/tabs';
 import { BookingApi } from '../../services/booking-api';
 import { I18n, useT, type I18nKey } from '../../services/i18n';
+import { MapView } from '../../components/map-view';
 import type { ComparisonResult, Listing } from '../../../shared/types';
 
 type SortKey = 'priceAsc' | 'priceDesc' | 'ratingDesc';
@@ -35,6 +36,7 @@ const CATALOG_STEP = 10;
     CardModule,
     TooltipModule,
     TabsModule,
+    MapView,
   ],
   templateUrl: './results-page.html',
 })
@@ -119,7 +121,38 @@ export class ResultsPage {
       this.plan.set(current.filter((_, idx) => idx !== i));
     } else {
       this.plan.set([...current, listing]);
+      if (!listing.coordinate) this.resolveCoordinate(listing);
     }
+  }
+
+  private resolveCoordinate(listing: Listing): void {
+    const destination = this.result()?.input.destination ?? '';
+    if (!destination) return;
+
+    this.api
+      .geocodeListing({
+        title: listing.title,
+        location: listing.location ?? undefined,
+        destination,
+      })
+      .subscribe({
+        next: (coord) => {
+          const updated = this.plan().map((l) =>
+            l.id === listing.id ? { ...l, coordinate: coord } : l,
+          );
+          this.plan.set(updated);
+          this.result.update((prev) => {
+            if (!prev) return prev;
+            const perUnit = prev.perUnit.map((u) => ({
+              ...u,
+              booking: u.booking.map((l) => (l.id === listing.id ? { ...l, coordinate: coord } : l)),
+              airbnb: u.airbnb.map((l) => (l.id === listing.id ? { ...l, coordinate: coord } : l)),
+            }));
+            return { ...prev, perUnit };
+          });
+        },
+        error: () => undefined,
+      });
   }
 
   inPlan(listing: Listing): boolean {

@@ -75,6 +75,9 @@ const dict = {
     'results.fetchMoreHint': 'Scrapes a new page live — can take 20–40s',
     'results.fetching': 'Fetching…',
     'results.fetchedAll': 'All available results loaded',
+    'results.mapTitle': 'Where they are',
+    'results.mapHint': 'Add listings to your plan to see them pinned here.',
+    'results.mapLegend': 'Blue: Booking · Red: Airbnb',
 
     'sort.priceAsc': 'Price (low → high)',
     'sort.priceDesc': 'Price (high → low)',
@@ -149,6 +152,9 @@ const dict = {
     'results.fetchMoreHint': 'Буде зроблено новий скрейп — до 20–40 сек',
     'results.fetching': 'Завантажую…',
     'results.fetchedAll': 'Це всі доступні результати',
+    'results.mapTitle': 'Де вони на мапі',
+    'results.mapHint': 'Додай варіанти до плану, щоб побачити їх на мапі.',
+    'results.mapLegend': 'Синій: Booking · Червоний: Airbnb',
 
     'sort.priceAsc': 'Ціна (дешевше → дорожче)',
     'sort.priceDesc': 'Ціна (дорожче → дешевше)',

@@ -6,6 +6,7 @@ import { getComparison, listComparisons, saveComparison } from './cache/store.js
 import { renderReportHtml } from './report/template.js';
 import { searchBooking } from './scrapers/booking.js';
 import { searchAirbnb } from './scrapers/airbnb.js';
+import { geocodeCity, geocodeListing } from './logic/geocode.js';
 import type { Listing } from '../shared/types.js';
 
 const searchSchema = z.object({
@@ -100,6 +101,36 @@ export function createApiRouter(): Router {
       input: c.input,
       topSplit: c.splitGroups[0]?.alternatives[0] ?? null,
     })));
+  });
+
+  router.get('/geocode', async (req, res) => {
+    const q = typeof req.query['q'] === 'string' ? req.query['q'].trim() : '';
+    if (!q || q.length > 200) {
+      res.status(400).json({ error: 'invalid_query' });
+      return;
+    }
+    const coord = await geocodeCity(q);
+    if (!coord) {
+      res.status(404).json({ error: 'not_found' });
+      return;
+    }
+    res.json(coord);
+  });
+
+  router.get('/geocode-listing', async (req, res) => {
+    const title = typeof req.query['title'] === 'string' ? req.query['title'].slice(0, 200) : '';
+    const location = typeof req.query['location'] === 'string' ? req.query['location'].slice(0, 200) : '';
+    const destination = typeof req.query['destination'] === 'string' ? req.query['destination'].slice(0, 120) : '';
+    if (!destination) {
+      res.status(400).json({ error: 'invalid_query' });
+      return;
+    }
+    const coord = await geocodeListing({ title, location, destination });
+    if (!coord) {
+      res.status(404).json({ error: 'not_found' });
+      return;
+    }
+    res.json(coord);
   });
 
   router.get('/report/:id', (req, res) => {
