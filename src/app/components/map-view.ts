@@ -19,7 +19,7 @@ type LeafletLib = typeof import('leaflet');
 @Component({
   selector: 'app-map-view',
   template: `
-    <div class="relative overflow-hidden rounded-3xl border border-black/10 bg-neutral-100">
+    <div class="relative isolate overflow-hidden rounded-3xl border border-black/10 bg-neutral-100" style="z-index: 0">
       <div #mapEl class="h-[360px] w-full sm:h-[420px]"></div>
       @if (!hasCoords()) {
         <div class="pointer-events-none absolute inset-0 flex items-end p-4">
@@ -44,6 +44,7 @@ export class MapView implements AfterViewInit, OnChanges, OnDestroy {
   private L?: LeafletLib;
   private map?: LeafletMap;
   private markers: LeafletMarker[] = [];
+  private resizeObserver?: ResizeObserver;
 
   hasCoords(): boolean {
     return this.listings.some((l) => l.coordinate);
@@ -62,6 +63,7 @@ export class MapView implements AfterViewInit, OnChanges, OnDestroy {
   }
 
   ngOnDestroy(): void {
+    this.resizeObserver?.disconnect();
     this.map?.remove();
   }
 
@@ -77,6 +79,18 @@ export class MapView implements AfterViewInit, OnChanges, OnDestroy {
       maxZoom: 19,
       attribution: '© OpenStreetMap',
     }).addTo(this.map);
+
+    if (typeof ResizeObserver !== 'undefined') {
+      this.resizeObserver = new ResizeObserver(() => {
+        this.map?.invalidateSize();
+      });
+      this.resizeObserver.observe(this.mapEl.nativeElement);
+    }
+
+    const kicks = [50, 250, 600, 1200];
+    for (const ms of kicks) {
+      setTimeout(() => this.map?.invalidateSize(), ms);
+    }
   }
 
   private render(): void {
